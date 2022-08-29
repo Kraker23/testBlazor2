@@ -1,55 +1,29 @@
-name: Deploy to GitHub Pages
-# Run workflow on every push to the master branch
-on:
-  push:
-    branches:
-    - main
-    paths:
-    - src/**
-    - docs/**
-    - .github/workflows/docs.yml
-  pull_request:
-    branches:
-    - main
-    paths:
-    - docs/**
-    - .github/workflows/docs.yml
-  workflow_dispatch:
-  
-  
+name: dotnet package
+
+on: [push]
+
 jobs:
+  build:
 
-    steps:
-    - uses: actions/checkout@v2
-    
-    
-    - name: Setup .NET 6.0
-      uses: actions/setup-dotnet@v1
-      with:
-        dotnet-version: 6.0.x
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: [ '3.0', '3.1.x', '5.0.x', '6.0.x'  ]
 
-    - name: Setup DocFX
-      uses: crazy-max/ghaction-chocolatey@v1
-      with:
-        args: install docfx
-
-    - name: DocFX Build
-      working-directory: docs
-      run: docfx .\docfx.json
-      continue-on-error: false
-
-        
-            # publishes Blazor project to the release-folder - name: Publish
-      if: github.event_name == 'push'
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: docs/_site
-        force_orphan: true
-      
-   # - name: Commit wwwroot to GitHub Pages
-   #   uses: JamesIves/github-pages-deploy-action@v4.4.0
-   #   with:
-    #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-     #   BRANCH: gh-pages
-     #   FOLDER: release/wwwroot
+      steps:
+        - uses: actions/checkout@v3
+        - name: Setup dotnet
+          uses: actions/setup-dotnet@v2
+          with:
+            dotnet-version: ${{ matrix.dotnet-version }}
+        - name: Install dependencies
+          run: dotnet restore
+        - name: Test with dotnet
+          run: dotnet test --logger trx --results-directory "TestResults-${{ matrix.dotnet-version }}"
+        - name: Upload dotnet test results
+          uses: actions/upload-artifact@v3
+          with:
+            name: dotnet-results-${{ matrix.dotnet-version }}
+            path: TestResults-${{ matrix.dotnet-version }}
+          # Use always() to always run this step to publish test results when there are test failures
+          if: ${{ always() }}
